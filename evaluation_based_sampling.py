@@ -2,8 +2,17 @@ from daphne import daphne
 from tests import is_tol, run_prob_test,load_truth
 import torch
 from primitives import primitive_dict
-rho_functions_dcit = {}
+rho_functions_dict= {}
+local_vs = {}
 sigma = 0
+
+
+# def tensor_to_value( ret_dict):
+#     v_ret_dict ={}
+#     for key, value in ret_dict.items():
+#         v_ret_dict[key.item()] = value
+#     return v_ret_dict
+
 
 def evaluate_program(ast):
     """Evaluate a program as desugared by daphne, generate a sample from the prior
@@ -11,20 +20,92 @@ def evaluate_program(ast):
         ast: json FOPPL program
     Returns: sample from the prior of ast
     """
-    global sigma
+    global sigma, local_vs
     # print(ast)
-    if isinstance(ast, list):
-        print(ast)
+
+    if isinstance(ast, list) and 'sample' in ast:
+        if 'sample' == ast[0]:
+            d, sigma = evaluate_program(ast[1])
+            return d.sample(), sigma
+            # return d.sample().item(), sigma
+
+    if isinstance(ast, list) and 'observe' in ast:
+        if 'observe' == ast[0]:
+            d, sigma = evaluate_program(ast[1])
+            return d.sample(), sigma
+
+    elif isinstance(ast, list) and 'let' in ast:
+        if 'let' == ast[0]:
+            v1,e1 = ast[1]
+            e0 = ast[2]
+            c_e1, sigma = evaluate_program(e1)
+            local_vs[v1] = c_e1
+            return evaluate_program(e0)
+            # print(ast)
+
+    elif isinstance(ast, list) and 'if' in ast:
+        if 'if' == ast[0]:
+            e1 = ast[1]
+            e2 = ast[2]
+            e3 = ast[3]
+            e1_prime, sigma = evaluate_program(e1)
+            if e1_prime.item():
+                return evaluate_program(e2)
+            else:
+                return evaluate_program(e3)
+
+    elif isinstance(ast, list) and 'defn' in ast:
+        if 'defn' == ast[0]:
+            f_name = ast[1]
+            v_list = ast[2]
+            f_e = ast[3]
+            rho_functions_dict[f_name] = [v_list, f_e]
+            return None, sigma
+
+    elif isinstance(ast, list):
+        # print(ast)
         c_s = []
         for i in range(len(ast)):
             c_s_t, sigma = evaluate_program(ast[i])
-            c_s.append(c_s_t)
+            if c_s_t is not None:
+                c_s.append(c_s_t)
         if len(c_s) != 0:
-            if c_s[0] in primitive_dict.keys():
-                return primitive_dict[c_s[0]](*c_s[1:]), sigma
-            elif torch.is_tensor(c_s[0]):
-                print(c_s[0])
+            # print(c_s[0])
+            # if c_s[0] in ['let']:
+            #     local_vs[c_s[1]] = c_s[2]
+            # if c_s[0] in ['sample']:
+            #     d = c_s[1]
+            #     return d.sample().item(), sigma
+
+            if type(c_s[0]) == dict:
+                # ret_dict = tensor_to_value(c_s[0])
+                # print(type(ret_dict))
                 return c_s[0], sigma
+            elif  isinstance(c_s[0], str) and c_s[0] in rho_functions_dict.keys():
+                v_list, f_e = rho_functions_dict[c_s[0]]
+                i=0
+                for v in v_list:
+                    local_vs[v] =c_s[i+1]
+                    i+=1
+                return evaluate_program(f_e)
+
+
+            elif c_s[0] in primitive_dict.keys():
+                if c_s[0] in ['vector', 'hash-map']:
+                    return primitive_dict[c_s[0]](c_s[1:]), sigma
+                else:
+                    # print(c_s)
+                    return primitive_dict[c_s[0]](*c_s[1:]), sigma
+
+
+            elif torch.is_tensor(c_s[0]):
+                # print(c_s[0])
+                return c_s[0], sigma
+            elif isinstance(c_s[0], int) or isinstance(c_s[0], float):
+                return c_s[0], sigma
+
+            # elif isinstance(c_s[0], str): # added
+            #     return c_s[0], sigma # added
         else:
             return None
     elif isinstance(ast, int) or isinstance(ast, float):
@@ -34,6 +115,17 @@ def evaluate_program(ast):
     elif isinstance(ast, str):
         if ast in primitive_dict.keys():
             return ast, sigma
+        # elif ast in ['sample']:
+        #     return ast, sigma
+        elif ast in local_vs.keys():
+            return local_vs[ast], sigma
+        else:
+            return ast, sigma
+        # elif ast in ['let']:
+        #     return ast, sigma
+        # else:
+        #     return ast, sigma
+            # d, sigma = evaluate_program()
 
     #
     #
@@ -44,8 +136,9 @@ def evaluate_program(ast):
 
 def get_stream(ast):
     """Return a stream of prior samples"""
+    # a, sig = evaluate_program(ast)
     while True:
-        yield evaluate_program(ast)
+        yield evaluate_program(ast)[0]
     
 
 
@@ -73,7 +166,7 @@ def run_deterministic_tests():
         
     print('All deterministic tests passed')
     
-
+# ['let', ['z', ['sample', ['uniform', 0, 1]]], ['let', ['mu', ['if', ['<', 'z', 0.1], -1, 1]], ['sample', ['normal', 'mu', ['sqrt', 0.09]]]]]
 
 def run_probabilistic_tests():
     
@@ -91,6 +184,7 @@ def run_probabilistic_tests():
         
         print('p value', p_val)
         assert(p_val > max_p_value)
+        # print("------------------------------Test passed")
     
     print('All probabilistic tests passed')
 
@@ -103,19 +197,18 @@ def run_probabilistic():
         # note: this path should be with respect to the daphne path!
         ast = daphne(['desugar', '-i', '../CS532-HW2/programs/tests/probabilistic/test_{}.daphne'.format(i)])
         truth = load_truth('programs/tests/probabilistic/test_{}.truth'.format(i))
-        print(ast)
+        # print(ast)
 
 
 
 if __name__ == '__main__':
     # run_deterministic()
-    run_deterministic_tests()
-    
+    # run_deterministic_tests()
+    #
     # run_probabilistic_tests()
     # run_probabilistic()
-    '''
-    for i in range(1,5):
+
+    for i in range(1,4):
         ast = daphne(['desugar', '-i', '../CS532-HW2/programs/{}.daphne'.format(i)])
         print('\n\n\nSample of prior of program {}:'.format(i))
         print(evaluate_program(ast)[0])
-    '''
