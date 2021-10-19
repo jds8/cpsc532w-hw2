@@ -1,6 +1,10 @@
 import torch
 
 #TODO
+
+def vectorize_seq(*args):
+    return torch.as_tensor([*args])
+
 def vectorize(v_list):
     if len(v_list) != 0 and not isinstance(v_list[0], torch.Tensor):
         return v_list
@@ -89,6 +93,9 @@ def categorical(*args):
     # probs = args[0].to(torch.float)
     return torch.distributions.categorical.Categorical(args[0])
 
+def sample (*args):
+    d = args[0]
+    return d.sample()
 
 primitive_dict = {
     '<': torch.lt,
@@ -101,6 +108,7 @@ primitive_dict = {
     'sqrt': torch.sqrt,
     '/': torch.divide,
     'vector': vectorize,
+    'vector*': vectorize_seq,
     'hash-map': make_hashmap,
     'get':vector_get,
     'put': v_h_put,
@@ -115,4 +123,5 @@ primitive_dict = {
     'uniform': unif,
     'bernoulli': berno,
     'discrete': categorical,
+    'sample*': sample,
 }
