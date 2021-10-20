@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 #TODO
 
@@ -6,10 +7,24 @@ def vectorize_seq(*args):
     return torch.as_tensor([*args])
 
 def vectorize(v_list):
+
     if len(v_list) != 0 and not isinstance(v_list[0], torch.Tensor):
         return v_list
     else:
-        return torch.as_tensor(v_list)
+        v_size =v_list[0].size()
+        for v in v_list:
+            if v.size() != v_size:
+                return v_list
+        return torch.stack(v_list)
+
+        # print("-----------------")
+        # try:
+        #
+        # except Exception as e:
+        #     return v_list
+    # elif  len(v_list) != 0 and len(v_list[0]!=0)
+    # else:
+    #     return torch.as_tensor(v_list)
 
 def make_hashmap(h_list):
     i = 0
@@ -97,6 +112,40 @@ def sample (*args):
     d = args[0]
     return d.sample()
 
+def cons(*args):
+    e = args[0]
+    v = args[1]
+    v = torch.cat(( e.unsqueeze(0), v))
+    return v
+
+def matrix_mul(*args):
+    m_0 = args[0].to(torch.float)
+    m_1 = args[1].to(torch.float)
+
+    return torch.matmul(m_0, m_1)
+
+def matrix_add(*args):
+    m_0 = args[0]
+    m_1 = args[1]
+    return torch.add(m_0, m_1)
+
+def matrix_tanh(*args):
+    m_0 = args[0]
+    return torch.tanh(m_0)
+
+
+def matrix_transpose(*args):
+    m_0 = args[0]
+    # print(m_0)
+    # print(m_0.size())
+    return torch.transpose(m_0, 0, 1)
+
+def matrix_remap(*args):
+    m_0 = args[0]
+    d_1 = args[1]
+    d_2 = args[2]
+    return m_0.repeat(d_1, d_2)
+
 primitive_dict = {
     '<': torch.lt,
     '>': torch.gt,
@@ -124,4 +173,15 @@ primitive_dict = {
     'bernoulli': berno,
     'discrete': categorical,
     'sample*': sample,
+    'observe*': sample,
+    'conj': append,
+    'cons': cons,
+
+    # matrix
+    'mat-transpose':matrix_transpose,
+    'mat-tanh': matrix_tanh,
+    'mat-add': matrix_add,
+    'mat-mul': matrix_mul,
+    'mat-repmat': matrix_remap,
+
 }
