@@ -39,47 +39,34 @@ def deterministic_eval(exp):
 
 def sample_from_joint(graph):
     "This function does ancestral sampling starting from the prior."
-    # TODO insert your code here
     G = graph[1]
     E = graph[2]
-    # print("----------------------------------------------------")
-    # print(E)
-    # print(graph)
     A = G['A']
     P = G['P']
     V = G['V'].copy()
     graph_struct = DiGraph(A)
+    # topological sort on the Graph
     topo = list(topological_sort(graph_struct))
-    # print(topo)
-    # print(P.keys())
     local_v = G['Y'].copy()
-
-    ret_l = {}
-    op = None
 
     if len(A) == 0:
         if len(P) == 0:
             ret, _ = eval(E, local_v)
             return ret
         else:
+            # deterministic eval
             ret_v = deterministic_eval(P[E])
             return ret_v
     else:
-        # excute
+        # eval each variable, variables that ahead of the current
+        # variable will be evaluated first
         for v in V:
-            if v in local_v.keys():
-                ret_l[v] = local_v[v]
-            else:
+            if v not in local_v.keys():
                 r_ind = topo.index(v)
-
                 for i in range(0, r_ind + 1):
                     if topo[i] not in env.keys():
-                        # print(P[topo[i]])
-                        # print(local_v)
                         ret, sigma = eval(P[topo[i]], local_v)
                         local_v[topo[i]] = ret
-                        if topo[i] == v:
-                            ret_l[v] = ret
 
         # all the variables evaluated
         return eval(E, local_v)[0]

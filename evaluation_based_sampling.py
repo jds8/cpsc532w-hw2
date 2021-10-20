@@ -13,19 +13,18 @@ def eval(ast, local_v):
     Returns: sample from the prior of ast
     """
     global sigma
-    # print(ast)
-
+    # sample expression
     if isinstance(ast, list) and 'sample' in ast:
         if 'sample' == ast[0]:
             d, sigma = eval(ast[1], local_v)
             return d.sample(), sigma
             # return d.sample().item(), sigma
-
+    # observe expression
     if isinstance(ast, list) and 'observe' in ast:
         if 'observe' == ast[0]:
             d, sigma = eval(ast[1], local_v)
             return d.sample(), sigma
-
+    # let expression
     elif isinstance(ast, list) and 'let' in ast:
         if 'let' == ast[0]:
             v1, e1 = ast[1]
@@ -34,7 +33,7 @@ def eval(ast, local_v):
             local_v[v1] = c_e1
             return eval(e0, local_v)
             # print(ast)
-
+    # if expression
     elif isinstance(ast, list) and 'if' in ast:
         if 'if' == ast[0]:
             e1 = ast[1]
@@ -45,7 +44,7 @@ def eval(ast, local_v):
                 return eval(e2, local_v)
             else:
                 return eval(e3, local_v)
-
+    # function defn
     elif isinstance(ast, list) and 'defn' in ast:
         if 'defn' == ast[0]:
             f_name = ast[1]
@@ -62,26 +61,9 @@ def eval(ast, local_v):
             if c_s_t is not None:
                 c_s.append(c_s_t)
         if len(c_s) != 0:
-            # print(c_s[0])
-            # if c_s[0] in ['let']:
-            #     local_vs[c_s[1]] = c_s[2]
-            # if c_s[0] in ['sample']:
-            #     d = c_s[1]
-            #     return d.sample().item(), sigma
-            # print("-----------------------------------------")
-            # print(c_s[0])
-            if type(c_s[0]) == list:
+            if type(c_s[0]) == list or type(c_s[0]) == dict:
                 return c_s[0], sigma
-                # for k in local_v.keys():
-                #     if isinstance(local_v[k], torch.Tensor):
-                #         print("{}  {}".format(k, local_v[k].size()))
-                #     else:
-                #         print("{}".format(k))
 
-            elif type(c_s[0]) == dict:
-                # ret_dict = tensor_to_value(c_s[0])
-                # print(type(ret_dict))
-                return c_s[0], sigma
             elif isinstance(c_s[0], str) and c_s[0] in rho_functions_dict.keys():
                 v_list, f_e = rho_functions_dict[c_s[0]]
                 i = 0
@@ -94,11 +76,9 @@ def eval(ast, local_v):
                 if c_s[0] in ['vector', 'hash-map']:
                     return primitive_dict[c_s[0]](c_s[1:]), sigma
                 else:
-                    # print(c_s)
                     return primitive_dict[c_s[0]](*c_s[1:]), sigma
 
             elif torch.is_tensor(c_s[0]):
-                # print(c_s[0])
                 return c_s[0], sigma
             elif isinstance(c_s[0], int) or isinstance(c_s[0], float):
                 return c_s[0], sigma
@@ -106,7 +86,7 @@ def eval(ast, local_v):
             return None
     elif isinstance(ast, int) or isinstance(ast, float):
         return torch.tensor(ast), sigma
-
+    # look up strings, primitives, variables etc
     elif isinstance(ast, str):
         if ast in primitive_dict.keys():
             return ast, sigma
