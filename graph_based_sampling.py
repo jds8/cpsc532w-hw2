@@ -1,5 +1,6 @@
 import torch
 import torch.distributions as dist
+from typing import List
 
 from daphne import daphne
 
@@ -37,6 +38,83 @@ def deterministic_eval(exp):
         raise ("Expression type unknown.", exp)
 
 
+def sample_initial(graph):
+    graph2 = graph.copy()
+    G = graph2[1]
+    V = G['V']
+    graph2[2] = V.copy()
+    sample, sigma = sample_from_joint(graph2)
+
+
+def hmc_sample():
+    return
+
+
+def accept(x: str, new_map: dict[str,float], old_map: dict[str,float], sigma: dict[str,float]):
+    """ Computes acceptance probability for MH
+    arg x: name of newly proposed variable
+    arg new_map: map from variable names to sample values with the new proposal value for x
+    arg old_map: map from variable names to sample values with the old proposal value for x
+    return: MH acceptance probability
+    """
+    # prior distribution
+    d, sigma = eval(P[x][1], sigma, old_map)
+    # prior distribution (I don't see how this can be different from d)
+    d_prime, sigma = eval(P[x][1], sigma, new_map)
+
+    # compute proposal ratio
+    loga = d.log_prob(new_map[x]) - d_prime.log_prob(old_map[x])
+
+    # compute Markov Blanket
+    vx = find_blanket(v)
+
+    # compute posterior probability
+    for v in vx:
+        log_update_pos, sigma = eval(P[v], sigma, new_map)
+        log_update_neg, sigma -= eval(P[v], sigma, old_map)
+
+        loga = loga + log_update_pos - log_update_neg
+    return np.exp(loga)
+
+
+def gibbs_step(old_map: dict, unobserveds: List[str], P:dict[str, List], sigma: dict):
+    for x in unobserveds:
+        d = eval(P[x][1], sigma, old_map)
+        new_map = old_map.copy()
+        new_map[x] = d.sample()
+        alpha = accept(x, new_map, old_map, sigma)
+        if torch.rand() < alpha:
+            old_map = new_map.copy()
+    return old_map
+
+
+def gibbs_sample(graph):
+    "This function does MH for each step of Gibbs sampling."
+    G = graph[1]
+    E = graph[2]
+    A = G['A']
+    P = G['P']
+    V = G['V'].copy()
+    graph_struct = DiGraph(A)
+    # topological sort on the Graph
+    topo = list(topological_sort(graph_struct))
+    sigma = {}
+    sigma['logW'] = 0
+
+    init_samples, _ = sample_initial(graph)
+    local_v = {var: init_samples[i] for i, var in enumerate(V)}
+
+    observeds = P.keys()
+    unobserveds = [v for v in V if v not in observeds]
+
+    samples = []
+    for v in topo:
+        local_v = gibbs_step(local_v, unobserveds, P, sigma)
+        samples.append(local_v[v])
+
+    return samples
+
+
 def sample_from_joint(graph):
     "This function does ancestral sampling starting from the prior."
     G = graph[1]
@@ -47,9 +125,11 @@ def sample_from_joint(graph):
     graph_struct = DiGraph(A)
     # topological sort on the Graph
     topo = list(topological_sort(graph_struct))
-    local_v = G['Y'].copy()
-
+    local_v = {}
+    sigma = {}
+    sigma['logW'] = 0
     if len(A) == 0:
+
         if len(P) == 0:
             ret, _ = eval(E, local_v)
             return ret
@@ -59,56 +139,24 @@ def sample_from_joint(graph):
             return ret_v
     else:
         # eval each variable, variables that ahead of the current
-        # variable will be evaluated first
+        # variable in the topological graph will be evaluated first
+        '''
         for v in V:
             if v not in local_v.keys():
                 r_ind = topo.index(v)
                 for i in range(0, r_ind + 1):
                     if topo[i] not in env.keys():
-                        ret, sigma = eval(P[topo[i]], local_v)
+                        ret, sigma = eval(P[topo[i]], sigma,local_v)
                         local_v[topo[i]] = ret
+        '''
+        # local_v= {}
+        for v in topo:
+            if v not in env.keys():
+                ret, sigma = eval(P[v], sigma, local_v)
+                local_v[v] = ret
 
         # all the variables evaluated
-        return eval(E, local_v)[0]
-
-
-'''
-        if isinstance(E, list):
-            op = E[0]
-            exps = E[1:]
-        else:
-            exps = [E]
-        for e in exps:
-            if e in local_v.keys():
-                ret_l[e] = local_v[e]
-            else:
-                r_ind = topo.index(e)
-
-                for i in range(0, r_ind + 1):
-                    if topo[i] not in env.keys():
-                        # print(P[topo[i]])
-                        # print(local_v)
-                        ret, sigma = eval(P[topo[i]], local_v)
-                        local_v[topo[i]] = ret
-                        if topo[i] == e:
-                            ret_l[e] = ret
-
-        if op is not None:
-            ret_exp = [op]
-            for e in exps:
-                ret_exp.append(ret_l[e].item())
-            return deterministic_eval(ret_exp)
-        else:
-            return ret_l[E]
-'''
-
-
-#     return ret_l[r_ind]
-#
-# local_vs.clear()
-# rho_functions_dict.clear()
-# # clear local_vs, rho
-# return torch.tensor(ret_l)
+        return eval(E, sigma, local_v)[0]
 
 
 def get_stream(graph):
