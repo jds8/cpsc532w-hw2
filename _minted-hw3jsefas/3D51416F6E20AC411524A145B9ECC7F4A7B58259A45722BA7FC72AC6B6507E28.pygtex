@@ -1,0 +1,9 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} observe expression}
+\PYG{k}{if} \PYG{n+nb}{isinstance}\PYG{p}{(}\PYG{n}{ast}\PYG{p}{,} \PYG{n+nb}{list}\PYG{p}{)} \PYG{o+ow}{and} \PYG{l+s+s1}{\PYGZsq{}observe\PYGZsq{}} \PYG{o+ow}{in} \PYG{n}{ast}\PYG{p}{:}
+    \PYG{k}{if} \PYG{l+s+s1}{\PYGZsq{}observe\PYGZsq{}} \PYG{o}{==} \PYG{n}{ast}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]:}
+        \PYG{n}{d}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{ast}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{local\PYGZus{}v}\PYG{p}{)}
+        \PYG{n}{c}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{ast}\PYG{p}{[}\PYG{l+m+mi}{2}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{local\PYGZus{}v}\PYG{p}{)}
+        \PYG{n}{sigma}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}logW\PYGZsq{}}\PYG{p}{]} \PYG{o}{+=} \PYG{n}{d}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{c}\PYG{p}{)}
+        \PYG{k}{return} \PYG{n}{c}\PYG{p}{,} \PYG{n}{sigma}
+\end{Verbatim}

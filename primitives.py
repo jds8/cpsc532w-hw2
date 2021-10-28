@@ -89,6 +89,14 @@ def beta(*args):
     c0 = args[1].to(torch.float)
     return torch.distributions.beta.Beta(c1, c0)
 
+def gamma(*args):
+    c1 = args[0].to(torch.float)
+    c0 = args[1].to(torch.float)
+    return torch.distributions.gamma.Gamma(c1, c0)
+
+def dirichlet(*args):
+    c1 = args[0]
+    return torch.distributions.dirichlet.Dirichlet(c1)
 
 def expo(*args):
     rate = args[0].to(torch.float)
@@ -103,6 +111,8 @@ def berno(*args):
     probs = args[0].to(torch.float)
     return torch.distributions.bernoulli.Bernoulli(probs)
 
+def is_eq(arg1, arg2):
+    return arg1 == arg2
 
 def categorical(*args):
     # probs = args[0].to(torch.float)
@@ -117,6 +127,12 @@ def cons(*args):
     v = args[1]
     v = torch.cat(( e.unsqueeze(0), v))
     return v
+
+def or_fun(*args):
+    return any(args)
+
+def and_fun(*args):
+    return all(args)
 
 def matrix_mul(*args):
     m_0 = args[0].to(torch.float)
@@ -154,6 +170,7 @@ primitive_dict = {
     '+': torch.add,
     '-': torch.sub,
     '*': torch.mul,
+    '=': is_eq,
     'sqrt': torch.sqrt,
     '/': torch.divide,
     'vector': vectorize,
@@ -167,6 +184,8 @@ primitive_dict = {
     'append': append,
     'rest': rest,
     'beta': beta,
+    'gamma': gamma,
+    'dirichlet': dirichlet,
     'normal': norm,
     'exponential': expo,
     'uniform': unif,
@@ -176,6 +195,9 @@ primitive_dict = {
     'observe*': sample,
     'conj': append,
     'cons': cons,
+    'or': or_fun,
+    'and': and_fun,
+    'flip': berno,
 
     # matrix
     'mat-transpose':matrix_transpose,

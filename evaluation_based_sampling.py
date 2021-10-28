@@ -29,7 +29,10 @@ def eval(ast, sigma, local_v):
         if 'let' == ast[0]:
             v1, e1 = ast[1]
             e0 = ast[2]
-            c_e1, sigma = eval(e1, sigma, local_v)
+            try:
+                c_e1, sigma = eval(e1, sigma, local_v)
+            except:
+                import pdb; pdb.set_trace()
             local_v[v1] = c_e1
             return eval(e0, sigma, local_v)
             # print(ast)
@@ -38,12 +41,19 @@ def eval(ast, sigma, local_v):
         if 'if' == ast[0]:
             e1 = ast[1]
             e2 = ast[2]
-            e3 = ast[3]
             e1_prime, sigma = eval(e1, sigma, local_v)
-            if e1_prime.item():
-                return eval(e2, sigma, local_v)
-            else:
-                return eval(e3, sigma, local_v)
+            try:
+                if e1_prime.item():
+                    return eval(e2, sigma, local_v)
+                else:
+                    e3 = ast[3]
+                    return eval(e3, sigma, local_v)
+            except:
+                if e1_prime:
+                    return eval(e2, sigma, local_v)
+                else:
+                    e3 = ast[3]
+                    return eval(e3, sigma, local_v)
     # function defn
     elif isinstance(ast, list) and 'defn' in ast:
         if 'defn' == ast[0]:
@@ -56,9 +66,14 @@ def eval(ast, sigma, local_v):
     elif isinstance(ast, list):
         c_s = []
         for i in range(len(ast)):
-            c_s_t, sigma = eval(ast[i], sigma, local_v)
-            if c_s_t is not None:
-                c_s.append(c_s_t)
+            try:
+                c_s_t, sigma = eval(ast[i], sigma, local_v)
+                if c_s_t is not None:
+                    c_s.append(c_s_t)
+            except:
+                c_s_t, sigma = eval(ast[i], sigma, local_v)
+                if c_s_t is not None:
+                    c_s.append(c_s_t)
         if len(c_s) != 0:
             if type(c_s[0]) == list or type(c_s[0]) == dict:
                 return c_s[0], sigma
@@ -98,7 +113,7 @@ def eval(ast, sigma, local_v):
 def evaluate_program(ast):
     local_vs = {}
     sigma = {"logW": 0}
-    return eval(ast, sigma, local_vs)
+    return eval(ast, sigma, local_vs), local_vs
 
 
 

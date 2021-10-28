@@ -1,0 +1,146 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{def} \PYG{n+nf}{sample\PYGZus{}initial}\PYG{p}{(}\PYG{n}{graph}\PYG{p}{):}
+    \PYG{n}{samples}\PYG{p}{,} \PYG{n}{local\PYGZus{}v} \PYG{o}{=} \PYG{n}{sample\PYGZus{}from\PYGZus{}joint}\PYG{p}{(}\PYG{n}{graph}\PYG{p}{)}
+    \PYG{k}{return} \PYG{n}{local\PYGZus{}v}
+
+\PYG{k}{def} \PYG{n+nf}{computeU\PYGZus{}old}\PYG{p}{(}\PYG{n}{X}\PYG{p}{:} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{:} \PYG{n}{List}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{],} \PYG{n}{Y}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{P}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{):}
+    \PYG{n}{U} \PYG{o}{=} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{([}\PYG{l+m+mf}{0.0}\PYG{p}{])}
+    \PYG{n}{local\PYGZus{}map} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{o}{**}\PYG{p}{\PYGZob{}}\PYG{n}{k}\PYG{p}{:}\PYG{n}{v} \PYG{k}{for} \PYG{n}{k}\PYG{p}{,}\PYG{n}{v} \PYG{o+ow}{in} \PYG{n+nb}{zip}\PYG{p}{(}\PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{X}\PYG{p}{)\PYGZcb{},} \PYG{o}{**}\PYG{n}{Y}\PYG{p}{\PYGZcb{}}
+    \PYG{k}{for} \PYG{n}{name}\PYG{p}{,} \PYG{n}{value} \PYG{o+ow}{in} \PYG{p}{\PYGZob{}}\PYG{n}{k}\PYG{p}{:}\PYG{n}{v} \PYG{k}{for} \PYG{n}{k}\PYG{p}{,}\PYG{n}{v} \PYG{o+ow}{in} \PYG{n+nb}{zip}\PYG{p}{(}\PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{X}\PYG{p}{)\PYGZcb{}}\PYG{o}{.}\PYG{n}{items}\PYG{p}{():}
+        \PYG{n}{U} \PYG{o}{\PYGZhy{}=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{name}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{local\PYGZus{}map}\PYG{p}{)[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{value}\PYG{p}{)}
+    \PYG{k}{for} \PYG{n}{name}\PYG{p}{,} \PYG{n}{value} \PYG{o+ow}{in} \PYG{n}{Y}\PYG{o}{.}\PYG{n}{items}\PYG{p}{():}
+        \PYG{n}{U} \PYG{o}{\PYGZhy{}=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{name}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{local\PYGZus{}map}\PYG{p}{)[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{value}\PYG{p}{)}
+    \PYG{k}{return} \PYG{n}{U}
+
+\PYG{k}{def} \PYG{n+nf}{diffU\PYGZus{}old}\PYG{p}{(}\PYG{n}{X}\PYG{p}{:} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{:} \PYG{n}{List}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{],} \PYG{n}{Y}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{P}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{):}
+    \PYG{n}{U} \PYG{o}{=} \PYG{n}{computeU\PYGZus{}old}\PYG{p}{(}\PYG{n}{X}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+    \PYG{n}{U}\PYG{o}{.}\PYG{n}{backward}\PYG{p}{()}
+
+\PYG{k}{def} \PYG{n+nf}{updateR}\PYG{p}{(}\PYG{n}{R}\PYG{p}{,} \PYG{n}{eps}\PYG{p}{,} \PYG{n}{Xt}\PYG{p}{):}
+    \PYG{n}{diffU}\PYG{p}{(}\PYG{n}{X}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+    \PYG{k}{for} \PYG{n}{key} \PYG{o+ow}{in} \PYG{n}{R}\PYG{o}{.}\PYG{n}{keys}\PYG{p}{():}
+        \PYG{n}{R}\PYG{p}{[}\PYG{n}{key}\PYG{p}{]} \PYG{o}{=} \PYG{n}{R}\PYG{p}{[}\PYG{n}{key}\PYG{p}{]} \PYG{o}{\PYGZhy{}} \PYG{p}{(}\PYG{l+m+mi}{1}\PYG{o}{/}\PYG{l+m+mi}{2}\PYG{p}{)}\PYG{o}{*}\PYG{n}{eps}\PYG{o}{*}\PYG{n}{Xt}\PYG{p}{[}\PYG{n}{key}\PYG{p}{]}\PYG{o}{.}\PYG{n}{grad}
+        \PYG{n}{Xt}\PYG{p}{[}\PYG{n}{key}\PYG{p}{]}\PYG{o}{.}\PYG{n}{grad}\PYG{o}{.}\PYG{n}{data}\PYG{o}{.}\PYG{n}{zero\PYGZus{}}\PYG{p}{()}
+    \PYG{k}{return} \PYG{n}{R}
+
+\PYG{k}{def} \PYG{n+nf}{leapfrog\PYGZus{}old}\PYG{p}{(}\PYG{n}{X}\PYG{p}{:} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{:} \PYG{n}{List}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{],} \PYG{n}{Y}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{P}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{R}\PYG{p}{:} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{T}\PYG{p}{:} \PYG{n+nb}{int}\PYG{p}{,} \PYG{n}{eps}\PYG{p}{:} \PYG{n+nb}{float}\PYG{p}{):}
+    \PYG{n}{Xt} \PYG{o}{=} \PYG{n}{X}
+
+    \PYG{n}{diffU\PYGZus{}old}\PYG{p}{(}\PYG{n}{Xt}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+    \PYG{n}{R\PYGZus{}half} \PYG{o}{=} \PYG{n}{R} \PYG{o}{\PYGZhy{}} \PYG{p}{(}\PYG{l+m+mi}{1}\PYG{o}{/}\PYG{l+m+mi}{2}\PYG{p}{)}\PYG{o}{*}\PYG{n}{eps}\PYG{o}{*}\PYG{n}{Xt}\PYG{o}{.}\PYG{n}{grad}
+    \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{grad}\PYG{o}{.}\PYG{n}{data}\PYG{o}{.}\PYG{n}{zero\PYGZus{}}\PYG{p}{()}
+
+    \PYG{k}{for} \PYG{n}{t} \PYG{o+ow}{in} \PYG{n+nb}{range}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{n}{T}\PYG{p}{):}
+        \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{data} \PYG{o}{=} \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{data} \PYG{o}{+} \PYG{n}{eps}\PYG{o}{*}\PYG{n}{R\PYGZus{}half}
+
+        \PYG{n}{diffU\PYGZus{}old}\PYG{p}{(}\PYG{n}{Xt}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+        \PYG{n}{R\PYGZus{}half} \PYG{o}{\PYGZhy{}=} \PYG{n}{eps}\PYG{o}{*}\PYG{n}{Xt}\PYG{o}{.}\PYG{n}{grad}
+        \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{grad}\PYG{o}{.}\PYG{n}{data}\PYG{o}{.}\PYG{n}{zero\PYGZus{}}\PYG{p}{()}
+
+    \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{data} \PYG{o}{=} \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{data} \PYG{o}{+} \PYG{n}{eps}\PYG{o}{*}\PYG{n}{R\PYGZus{}half}
+
+    \PYG{n}{diffU\PYGZus{}old}\PYG{p}{(}\PYG{n}{Xt}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+    \PYG{n}{Rt} \PYG{o}{=} \PYG{n}{R\PYGZus{}half} \PYG{o}{\PYGZhy{}} \PYG{p}{(}\PYG{l+m+mi}{1}\PYG{o}{/}\PYG{l+m+mi}{2}\PYG{p}{)}\PYG{o}{*}\PYG{n}{eps}\PYG{o}{*}\PYG{n}{Xt}\PYG{o}{.}\PYG{n}{grad}
+    \PYG{n}{Xt}\PYG{o}{.}\PYG{n}{grad}\PYG{o}{.}\PYG{n}{data}\PYG{o}{.}\PYG{n}{zero\PYGZus{}}\PYG{p}{()}
+
+    \PYG{k}{return} \PYG{n}{Xt}\PYG{p}{,} \PYG{n}{Rt}
+
+\PYG{k}{def} \PYG{n+nf}{H}\PYG{p}{(}\PYG{n}{X}\PYG{p}{,} \PYG{n}{R}\PYG{p}{,} \PYG{n}{M}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{):}
+    \PYG{k}{return} \PYG{n}{computeU\PYGZus{}old}\PYG{p}{(}\PYG{n}{X}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)} \PYG{o}{+} \PYG{p}{(}\PYG{l+m+mi}{1}\PYG{o}{/}\PYG{p}{(}\PYG{l+m+mi}{2}\PYG{o}{*}\PYG{n}{M}\PYG{p}{))}\PYG{o}{*}\PYG{n}{torch}\PYG{o}{.}\PYG{n}{square}\PYG{p}{(}\PYG{n}{R}\PYG{p}{)}\PYG{o}{.}\PYG{n}{sum}\PYG{p}{()}
+
+\PYG{k}{def} \PYG{n+nf}{hmc\PYGZus{}sample}\PYG{p}{(}\PYG{n}{graph}\PYG{p}{,} \PYG{n}{S}\PYG{p}{):}
+    \PYG{l+s+s2}{\PYGZdq{}This function does HMC sampling\PYGZdq{}}
+    \PYG{n}{G} \PYG{o}{=} \PYG{n}{graph}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}
+    \PYG{n}{P} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}P\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{Y} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}Y\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{A} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}A\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{V} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}V\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{sigma} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}logW\PYGZsq{}}\PYG{p}{:} \PYG{l+m+mi}{0}\PYG{p}{\PYGZcb{}}
+
+    \PYG{n}{local\PYGZus{}v} \PYG{o}{=} \PYG{n}{sample\PYGZus{}initial}\PYG{p}{(}\PYG{n}{graph}\PYG{p}{)}
+
+    \PYG{n}{observeds} \PYG{o}{=} \PYG{n}{Y}\PYG{o}{.}\PYG{n}{keys}\PYG{p}{()}
+    \PYG{n}{var\PYGZus{}names} \PYG{o}{=} \PYG{p}{[}\PYG{n}{v} \PYG{k}{for} \PYG{n}{v} \PYG{o+ow}{in} \PYG{n}{V} \PYG{k}{if} \PYG{n}{v} \PYG{o+ow}{not} \PYG{o+ow}{in} \PYG{n}{observeds}\PYG{p}{]}
+
+    \PYG{n}{Y} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{n}{key}\PYG{p}{:} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{([}\PYG{n}{value}\PYG{p}{],} \PYG{n}{requires\PYGZus{}grad}\PYG{o}{=}\PYG{n+nb+bp}{False}\PYG{p}{)} \PYG{k}{for} \PYG{n}{key}\PYG{p}{,} \PYG{n}{value} \PYG{o+ow}{in} \PYG{n}{Y}\PYG{o}{.}\PYG{n}{items}\PYG{p}{()\PYGZcb{}}
+    \PYG{n}{X} \PYG{o}{=} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{([}\PYG{n}{value} \PYG{k}{for} \PYG{n}{key}\PYG{p}{,} \PYG{n}{value} \PYG{o+ow}{in} \PYG{n}{local\PYGZus{}v}\PYG{o}{.}\PYG{n}{items}\PYG{p}{()} \PYG{k}{if} \PYG{n}{key} \PYG{o+ow}{in} \PYG{n}{var\PYGZus{}names}\PYG{p}{],} \PYG{n}{requires\PYGZus{}grad}\PYG{o}{=}\PYG{n+nb+bp}{True}\PYG{p}{)}
+
+    \PYG{k}{return} \PYG{n}{hmc}\PYG{p}{(}\PYG{n}{X}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}logW\PYGZsq{}}\PYG{p}{:}\PYG{l+m+mi}{0}\PYG{p}{\PYGZcb{},} \PYG{n}{S}\PYG{o}{=}\PYG{n}{S}\PYG{p}{)}
+
+\PYG{k}{def} \PYG{n+nf}{hmc}\PYG{p}{(}\PYG{n}{X}\PYG{p}{:} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{tensor}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{:} \PYG{n}{List}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{P}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,}
+        \PYG{n}{T}\PYG{p}{:} \PYG{n+nb}{int} \PYG{o}{=} \PYG{l+m+mi}{10}\PYG{p}{,} \PYG{n}{eps}\PYG{p}{:} \PYG{n+nb}{float} \PYG{o}{=} \PYG{l+m+mf}{0.1}\PYG{p}{,} \PYG{n}{M}\PYG{p}{:} \PYG{n+nb}{float} \PYG{o}{=} \PYG{l+m+mf}{1.0}\PYG{p}{,} \PYG{n}{S}\PYG{p}{:} \PYG{n+nb}{int}\PYG{o}{=}\PYG{l+m+mi}{10000}\PYG{p}{):}
+    \PYG{n}{local\PYGZus{}vars} \PYG{o}{=} \PYG{p}{[]}
+    \PYG{n}{Xs} \PYG{o}{=} \PYG{n}{X}
+    \PYG{k}{for} \PYG{n}{s} \PYG{o+ow}{in} \PYG{n+nb}{range}\PYG{p}{(}\PYG{n}{S}\PYG{p}{):}
+        \PYG{n}{Rs} \PYG{o}{=} \PYG{n}{dist}\PYG{o}{.}\PYG{n}{MultivariateNormal}\PYG{p}{(}\PYG{n}{torch}\PYG{o}{.}\PYG{n}{zeros}\PYG{p}{(}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{Xs}\PYG{p}{)),} \PYG{n}{M}\PYG{o}{*}\PYG{n}{torch}\PYG{o}{.}\PYG{n}{eye}\PYG{p}{(}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{Xs}\PYG{p}{)))}\PYG{o}{.}\PYG{n}{sample}\PYG{p}{([}\PYG{l+m+mi}{1}\PYG{p}{])}\PYG{o}{.}\PYG{n}{reshape}\PYG{p}{(}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{)}
+        \PYG{n}{Xprime}\PYG{p}{,} \PYG{n}{Rprime} \PYG{o}{=} \PYG{n}{leapfrog\PYGZus{}old}\PYG{p}{(}\PYG{n}{Xs}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{Rs}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{T}\PYG{p}{,} \PYG{n}{eps}\PYG{p}{)}
+        \PYG{k}{if} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{rand}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{)} \PYG{o}{\PYGZlt{}} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{exp}\PYG{p}{(}\PYG{o}{\PYGZhy{}}\PYG{n}{H}\PYG{p}{(}\PYG{n}{Xprime}\PYG{p}{,} \PYG{n}{Rprime}\PYG{p}{,} \PYG{n}{M}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)} \PYG{o}{+} \PYG{n}{H}\PYG{p}{(}\PYG{n}{Xs}\PYG{p}{,} \PYG{n}{Rs}\PYG{p}{,} \PYG{n}{M}\PYG{p}{,} \PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{Y}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)):}
+            \PYG{n}{Xs} \PYG{o}{=} \PYG{n}{Xprime}
+        \PYG{n}{local\PYGZus{}vars}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(\PYGZob{}}\PYG{n}{var\PYGZus{}name}\PYG{p}{:} \PYG{n}{value} \PYG{k}{for} \PYG{n}{var\PYGZus{}name}\PYG{p}{,} \PYG{n}{value} \PYG{o+ow}{in} \PYG{n+nb}{zip}\PYG{p}{(}\PYG{n}{var\PYGZus{}names}\PYG{p}{,} \PYG{n}{X}\PYG{p}{)\PYGZcb{})}
+    \PYG{k}{return} \PYG{n}{local\PYGZus{}vars}
+
+\PYG{k}{def} \PYG{n+nf}{accept}\PYG{p}{(}\PYG{n}{x}\PYG{p}{:} \PYG{n+nb}{str}\PYG{p}{,} \PYG{n}{new\PYGZus{}map}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{old\PYGZus{}map}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{P}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{A}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{):}
+    \PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{} Computes acceptance probability for MH}
+\PYG{l+s+sd}{    arg x: name of newly proposed variable}
+\PYG{l+s+sd}{    arg new\PYGZus{}map: map from variable names to sample values with the new proposal value for x}
+\PYG{l+s+sd}{    arg old\PYGZus{}map: map from variable names to sample values with the old proposal value for x}
+\PYG{l+s+sd}{    return: MH acceptance probability}
+\PYG{l+s+sd}{    \PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{c+c1}{\PYGZsh{} prior distribution}
+    \PYG{n}{d}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{x}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{old\PYGZus{}map}\PYG{p}{)}
+    \PYG{c+c1}{\PYGZsh{} prior distribution (I don\PYGZsq{}t see how this can be different from d)}
+    \PYG{n}{d\PYGZus{}prime}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{x}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{new\PYGZus{}map}\PYG{p}{)}
+
+    \PYG{c+c1}{\PYGZsh{} compute proposal ratio}
+    \PYG{c+c1}{\PYGZsh{} (1) *given* the *new* value of x (from d\PYGZus{}prime) calculate the probability of the *old value* (from old\PYGZus{}map[x])}
+    \PYG{c+c1}{\PYGZsh{} (2) *given* the *old* value of x (from d) calculate the probability of the *new value* (from new\PYGZus{}map[x])}
+    \PYG{c+c1}{\PYGZsh{} loga = (1) \PYGZhy{} (2)}
+    \PYG{n}{loga} \PYG{o}{=} \PYG{n}{d\PYGZus{}prime}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{old\PYGZus{}map}\PYG{p}{[}\PYG{n}{x}\PYG{p}{])} \PYG{o}{\PYGZhy{}} \PYG{n}{d}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{new\PYGZus{}map}\PYG{p}{[}\PYG{n}{x}\PYG{p}{])}
+
+    \PYG{c+c1}{\PYGZsh{} get nodes where x is a parent}
+    \PYG{n}{vx} \PYG{o}{=} \PYG{n}{A}\PYG{p}{[}\PYG{n}{x}\PYG{p}{]} \PYG{o}{+} \PYG{p}{[}\PYG{n}{x}\PYG{p}{]}
+
+    \PYG{c+c1}{\PYGZsh{} compute posterior probability}
+    \PYG{k}{for} \PYG{n}{v} \PYG{o+ow}{in} \PYG{n}{vx}\PYG{p}{:}
+        \PYG{n}{d1}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{v}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{new\PYGZus{}map}\PYG{p}{)}
+        \PYG{n}{log\PYGZus{}update\PYGZus{}pos} \PYG{o}{=} \PYG{n}{d1}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{new\PYGZus{}map}\PYG{p}{[}\PYG{n}{v}\PYG{p}{])}
+
+        \PYG{n}{d2}\PYG{p}{,} \PYG{n}{\PYGZus{}} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{v}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{old\PYGZus{}map}\PYG{p}{)}
+        \PYG{n}{log\PYGZus{}update\PYGZus{}neg} \PYG{o}{=} \PYG{n}{d2}\PYG{o}{.}\PYG{n}{log\PYGZus{}prob}\PYG{p}{(}\PYG{n}{old\PYGZus{}map}\PYG{p}{[}\PYG{n}{v}\PYG{p}{])}
+
+        \PYG{n}{loga} \PYG{o}{=} \PYG{n}{loga} \PYG{o}{+} \PYG{n}{log\PYGZus{}update\PYGZus{}pos} \PYG{o}{\PYGZhy{}} \PYG{n}{log\PYGZus{}update\PYGZus{}neg}
+    \PYG{k}{return} \PYG{n}{np}\PYG{o}{.}\PYG{n}{exp}\PYG{p}{(}\PYG{n}{loga}\PYG{p}{)}
+
+
+\PYG{k}{def} \PYG{n+nf}{gibbs\PYGZus{}step}\PYG{p}{(}\PYG{n}{old\PYGZus{}map}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{unobserveds}\PYG{p}{:} \PYG{n}{List}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{],} \PYG{n}{P}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{A}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{:} \PYG{n+nb}{dict}\PYG{p}{):}
+    \PYG{k}{for} \PYG{n}{x} \PYG{o+ow}{in} \PYG{n}{unobserveds}\PYG{p}{:}
+        \PYG{n}{d}\PYG{p}{,} \PYG{n}{sigma} \PYG{o}{=} \PYG{n+nb}{eval}\PYG{p}{(}\PYG{n}{P}\PYG{p}{[}\PYG{n}{x}\PYG{p}{][}\PYG{l+m+mi}{1}\PYG{p}{],} \PYG{n}{sigma}\PYG{p}{,} \PYG{n}{old\PYGZus{}map}\PYG{p}{)}
+        \PYG{n}{new\PYGZus{}map} \PYG{o}{=} \PYG{n}{old\PYGZus{}map}\PYG{o}{.}\PYG{n}{copy}\PYG{p}{()}
+        \PYG{n}{new\PYGZus{}map}\PYG{p}{[}\PYG{n}{x}\PYG{p}{]} \PYG{o}{=} \PYG{n}{d}\PYG{o}{.}\PYG{n}{sample}\PYG{p}{()}
+        \PYG{n}{alpha} \PYG{o}{=} \PYG{n}{accept}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,} \PYG{n}{new\PYGZus{}map}\PYG{p}{,} \PYG{n}{old\PYGZus{}map}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{A}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+        \PYG{k}{if} \PYG{n}{torch}\PYG{o}{.}\PYG{n}{rand}\PYG{p}{(}\PYG{l+m+mi}{1}\PYG{p}{)} \PYG{o}{\PYGZlt{}} \PYG{n}{alpha}\PYG{p}{:}
+            \PYG{n}{old\PYGZus{}map} \PYG{o}{=} \PYG{n}{new\PYGZus{}map}\PYG{o}{.}\PYG{n}{copy}\PYG{p}{()}
+    \PYG{k}{return} \PYG{n}{old\PYGZus{}map}
+
+
+\PYG{k}{def} \PYG{n+nf}{gibbs\PYGZus{}sample}\PYG{p}{(}\PYG{n}{graph}\PYG{p}{,} \PYG{n}{S} \PYG{o}{=} \PYG{l+m+mi}{100000}\PYG{p}{):}
+    \PYG{l+s+s2}{\PYGZdq{}This function does MH for each step of Gibbs sampling.\PYGZdq{}}
+    \PYG{n}{G} \PYG{o}{=} \PYG{n}{graph}\PYG{p}{[}\PYG{l+m+mi}{1}\PYG{p}{]}
+    \PYG{n}{P} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}P\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{Y} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}Y\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{A} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}A\PYGZsq{}}\PYG{p}{]}
+    \PYG{n}{V} \PYG{o}{=} \PYG{n}{G}\PYG{p}{[}\PYG{l+s+s1}{\PYGZsq{}V\PYGZsq{}}\PYG{p}{]}\PYG{o}{.}\PYG{n}{copy}\PYG{p}{()}
+    \PYG{n}{sigma} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+s+s1}{\PYGZsq{}logW\PYGZsq{}}\PYG{p}{:} \PYG{l+m+mi}{0}\PYG{p}{\PYGZcb{}}
+
+    \PYG{n}{local\PYGZus{}v} \PYG{o}{=} \PYG{n}{sample\PYGZus{}initial}\PYG{p}{(}\PYG{n}{graph}\PYG{p}{)}
+
+    \PYG{n}{observeds} \PYG{o}{=} \PYG{n}{Y}\PYG{o}{.}\PYG{n}{keys}\PYG{p}{()}
+    \PYG{n}{unobserveds} \PYG{o}{=} \PYG{p}{[}\PYG{n}{v} \PYG{k}{for} \PYG{n}{v} \PYG{o+ow}{in} \PYG{n}{V} \PYG{k}{if} \PYG{n}{v} \PYG{o+ow}{not} \PYG{o+ow}{in} \PYG{n}{observeds}\PYG{p}{]}
+
+    \PYG{n}{samples}\PYG{p}{:} \PYG{n}{List}\PYG{p}{[}\PYG{n+nb}{dict}\PYG{p}{]} \PYG{o}{=} \PYG{p}{[}\PYG{n}{local\PYGZus{}v}\PYG{p}{]}
+    \PYG{k}{for} \PYG{n}{s} \PYG{o+ow}{in} \PYG{n+nb}{range}\PYG{p}{(}\PYG{n}{S}\PYG{p}{):}
+        \PYG{n}{local\PYGZus{}v} \PYG{o}{=} \PYG{n}{gibbs\PYGZus{}step}\PYG{p}{(}\PYG{n}{local\PYGZus{}v}\PYG{p}{,} \PYG{n}{unobserveds}\PYG{p}{,} \PYG{n}{P}\PYG{p}{,} \PYG{n}{A}\PYG{p}{,} \PYG{n}{sigma}\PYG{p}{)}
+        \PYG{n}{samples}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n}{local\PYGZus{}v}\PYG{p}{)}
+
+    \PYG{k}{return} \PYG{n}{samples}
+\end{Verbatim}
