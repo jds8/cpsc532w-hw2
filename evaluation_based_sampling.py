@@ -54,7 +54,6 @@ def eval(ast, sigma, local_v):
             return None, sigma
 
     elif isinstance(ast, list):
-        # print(ast)
         c_s = []
         for i in range(len(ast)):
             c_s_t, sigma = eval(ast[i], sigma, local_v)
