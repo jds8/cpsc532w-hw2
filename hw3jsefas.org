@@ -88,9 +88,11 @@
 [[/home/jsefas/probprog/cpsc532w-hw2/trace-y-5-Gibbs.png]]
 [[/home/jsefas/probprog/cpsc532w-hw2/trace-x-5-Gibbs.png]]
 
+** Importance
+[[/home/jsefas/probprog/cpsc532w-hw2/trace-x-5-Importance.png]]
 
 * Program 5
-/home/jsefas/probprog/cpsc532w-hw2/trace-x-5-Importance.png      n order to solve this problem exactly, we recognize that we must sample from the line $y=7-x$. Because $X$ and $Y$ are independent, their joint distribution is a spherical bivariate normal centered at the origin with diagonal variance and no covariance. Therefore any slice of this distribution is also $\operatorname{Normal}(0,10)$, so we can simply sample from this distribution. Once we have sample $z\sim \operatorname{N}(0,10)$, we view it as a sample from a vertical slice $P(Y=z|X=c)$ distance $c$ to the right of the y-axis where $c$ is the length from the origin to the point $(3.5, 3.5)$ on $y=7-x$. The sample we get from $z$ defines a point in the line $x=c$ at $[c\; z]$. We then rotate this vector $\pi/4$ back onto the line $y=7-x$ in order to recover our samples for $x$ and $y$. In particular, our equations are $x = \dfrac{7}{2} - \dfrac{\sqrt{2}{z}{2}$ and $y = \dfrac{7}{2} + \dfrac{\sqrt{2}{z}{2}$.
+In order to solve this problem exactly, we recognize that we must sample from the line $y=7-x$. Because $X$ and $Y$ are independent, their joint distribution is a spherical bivariate normal centered at the origin with diagonal variance and no covariance. Therefore any slice of this distribution is also $\operatorname{Normal}(0,10)$, so we can simply sample from this distribution. Once we have sample $z\sim \operatorname{N}(0,10)$, we view it as a sample from a vertical slice $P(Y=z|X=c)$ distance $c$ to the right of the y-axis where $c$ is the length from the origin to the point $(3.5, 3.5)$ on $y=7-x$. The sample we get from $z$ defines a point in the line $x=c$ at $[c\; z]$. We then rotate this vector $\pi/4$ back onto the line $y=7-x$ in order to recover our samples for $x$ and $y$. In particular, our equations are $x = \dfrac{7}{2} - \dfrac{\sqrt{2}{z}{2}$ and $y = \dfrac{7}{2} + \dfrac{\sqrt{2}{z}{2}$.
 
 * Code
 ** Evaluation Based Importance Sampling
