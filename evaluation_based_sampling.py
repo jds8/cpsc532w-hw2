@@ -1,9 +1,14 @@
 from daphne import daphne
 from tests import is_tol, run_prob_test,load_truth
 import torch
+import torch.distributions as dist
 from primitives import primitive_dict
+
 rho_functions_dict= {}
 
+LOGW = "logW"
+QKEY = "Q"
+GKEY = "G"
 
 def eval(ast, sigma, local_v):
     """Evaluate a program as desugared by daphne, generate a sample from the prior
@@ -11,11 +16,30 @@ def eval(ast, sigma, local_v):
         ast: json FOPPL program
     Returns: sample from the prior of ast
     """
+    if LOGW not in sigma:
+        sigma[LOGW] = 0
+    if QKEY not in sigma:
+        sigma[QKEY] = {}
+    if GKEY not in sigma:
+        sigma[GKEY] = {}
+
     # sample expression
     if isinstance(ast, list) and 'sample' in ast:
         if 'sample' == ast[0]:
             d, sigma = eval(ast[1], sigma, local_v)
-            return d.sample(), sigma
+            if v not in sigma[QKEY]:
+                sigma[QKEY][v] = d
+            p = sigma[QKEY][v]
+            c = p.sample()
+
+            dg = p.make_copy_with_grads()
+            -dg.log_prob(c)
+            dg.backward()
+            sigma[GKEY][v] = [lmbda.grad for lmbda in dg.Parameters()]
+
+            logW = d.log_prob(c) - sigma[QKEY][v].log_prob(c)
+            sigma[LOGW] += logW
+            return c, sigma
             # return d.sample().item(), sigma
     # observe expression
     if isinstance(ast, list) and 'observe' in ast:
@@ -29,10 +53,7 @@ def eval(ast, sigma, local_v):
         if 'let' == ast[0]:
             v1, e1 = ast[1]
             e0 = ast[2]
-            try:
-                c_e1, sigma = eval(e1, sigma, local_v)
-            except:
-                import pdb; pdb.set_trace()
+            c_e1, sigma = eval(e1, sigma, local_v)
             local_v[v1] = c_e1
             return eval(e0, sigma, local_v)
             # print(ast)
@@ -66,14 +87,9 @@ def eval(ast, sigma, local_v):
     elif isinstance(ast, list):
         c_s = []
         for i in range(len(ast)):
-            try:
-                c_s_t, sigma = eval(ast[i], sigma, local_v)
-                if c_s_t is not None:
-                    c_s.append(c_s_t)
-            except:
-                c_s_t, sigma = eval(ast[i], sigma, local_v)
-                if c_s_t is not None:
-                    c_s.append(c_s_t)
+            c_s_t, sigma = eval(ast[i], sigma, local_v)
+            if c_s_t is not None:
+                c_s.append(c_s_t)
         if len(c_s) != 0:
             if type(c_s[0]) == list or type(c_s[0]) == dict:
                 return c_s[0], sigma
@@ -112,7 +128,7 @@ def eval(ast, sigma, local_v):
 
 def evaluate_program(ast):
     local_vs = {}
-    sigma = {"logW": 0}
+    sigma = {LOGW: 0}
     return eval(ast, sigma, local_vs), local_vs
 
 

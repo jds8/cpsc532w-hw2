@@ -1,5 +1,6 @@
 import torch
 import torch.distributions as dist
+from distributions import Normal, Bernoulli, Categorical, Dirichlet, Gamma
 from torch.autograd import Variable
 import numpy as np
 
@@ -11,11 +12,20 @@ from daphne import daphne
 from primitives import primitive_dict
 from tests import is_tol, run_prob_test, load_truth
 from networkx import DiGraph, topological_sort
-from evaluation_based_sampling import eval, rho_functions_dict
+from evaluation_based_sampling import eval, rho_functions_dict, GKEY, LOGW, QKEY
+
+import wandb
+import copy
+
+use_wandb = True
+use_baseline = True
+
+if use_wandb:
+    wandb.init(project='propprog', entity="jsefas")
 
 # Put all function mappings from the deterministic language environment to your
 # Python evaluation context here:
-env = {'normal': dist.Normal,
+env = {'normal': primitive_dict['normal'],
        'sqrt': torch.sqrt,
        'vector': primitive_dict['vector*'],
        'sample*': primitive_dict['sample*'],
@@ -24,6 +34,8 @@ env = {'normal': dist.Normal,
        'uniform': primitive_dict['uniform'],
        'bernoulli': primitive_dict['bernoulli'],
        'discrete': primitive_dict['discrete'],
+       'categorical': primitive_dict['discrete'],
+       'dirichlet': primitive_dict['dirichlet'],
        # 'if':
        }
 
@@ -41,8 +53,125 @@ def deterministic_eval(exp):
         raise ("Expression type unknown.", exp)
 
 
+alpha = 0.05
+step = 1
+def optimizer_step(q, ghat):
+    # global alpha
+    # global step
+    # if step % 50 == 0:
+    #     alpha *= 0.1
+    # step += 1
+    lambdas = {}
+    for v in ghat:
+        # grad_params = []
+        # next_param_idx = 0
+        # for p in q[v].Parameters():
+
+        #     for i in range(torch.numel(p)):
+        #         if np.isnan(ghat[v][next_param_idx+i]):
+        #             import pdb; pdb.set_trace()
+
+        #     grad_params.append(ghat[v][next_param_idx: next_param_idx + torch.numel(p)])
+        #     next_param_idx = next_param_idx + torch.numel(p)
+
+        # for i,(p, grad) in enumerate(zip(q[v].Parameters(), grad_params)):
+        #     p.data = p.data + alpha*grad
+
+        for i,p in enumerate(q[v].Parameters()):
+            if p.data.shape != (p.data + alpha*ghat[v][i]).shape:
+                import pdb; pdb.set_trace()
+            p.data = p.data + alpha*ghat[v][i]
+
+        # q[v] = q[v].make_copy_with_grads()
+        # print(ghat[v])
+
+    return q
+
+
+def cov(X, Y):
+    return torch.matmul((X - X.mean(axis=0)).transpose(1,0), Y - Y.mean(axis=0))
+
+
+def elbo_gradients(gt, logWt):
+    ghat = {}
+    f = [{} for l in range(len(gt))]
+    for v in set(k for gmap in gt for k in gmap.keys()):
+        for l, gtl in enumerate(gt):
+            fl = f[l]
+            if v in gtl:
+                ggrad = torch.stack(gtl[v])
+                fl[v] = ggrad*logWt[l]
+            else:
+                gtl[v] = torch.tensor(0.0)
+                fl[v] = torch.tensor(0.0)
+
+        glstacks = []
+        for gtl in gt:
+            glstacks.append(torch.stack(gtl[v]).squeeze())
+        gstack = torch.stack(glstacks)
+
+        # gstack = np.stack([gtl[v] for gtl in gt])
+        fstack = torch.stack([fl[v].detach().squeeze() for fl in f])
+        try:
+            covariance = torch.diag(cov(fstack, gstack))
+            variance = torch.diag(cov(gstack, gstack))
+        except:
+            import pdb; pdb.set_trace()
+        global use_baseline
+        if use_baseline:
+            if torch.sum(variance).detach() == 0:
+                bhat = torch.tensor(0.0)
+            else:
+                bhat = torch.sum(covariance) / torch.sum(variance)
+                # bhat = covariance / variance
+        else:
+            bhat = torch.tensor(0.0)
+
+        # gstack = np.stack([gtl[v].detach().numpy() for gtl in gt])
+        # fstack = np.stack([fl[v].detach().numpy() for fl in f])
+        # covariance = np.diag(cov(fstack, gstack))
+        # variance = np.diag(cov(gstack, gstack))
+        # if use_baseline:
+        #     bhat = covariance / variance
+        # else:
+        #     bhat = 0.0
+
+        ghat[v] = (fstack - bhat*gstack).sum(axis=0) / len(gt)
+
+    return ghat
+
+
+def bbvi(graph, T=100, L=100):
+    global use_baseline
+    if use_baseline:
+        print('using baseline')
+    else:
+        print('not using baseline')
+    sigma = {LOGW: 0, QKEY: {}, GKEY: {}}
+    return_vals = []
+    for t in range(T):
+        gt = []
+        logWt = []
+        for l in range(L):
+            (rtl, sigmatl), _ = sample_from_joint(graph, sigma)
+            gtl, logWtl = sigmatl[GKEY], sigmatl[LOGW]
+            gt.append(gtl)
+            logWt.append(logWtl)
+            return_vals.append((rtl, logWtl))
+            sigma[LOGW] = 0
+            sigma[GKEY] = {}
+        ghat = elbo_gradients(gt, logWt)
+        new_q = optimizer_step(sigma[QKEY], ghat)
+        sigma[QKEY] = new_q
+        ELBO = sum(logWt) / L
+        global use_wandb;
+        if use_wandb:
+            wandb.log({"epoch": t, "elbo": ELBO})
+    return return_vals, sigma[QKEY]
+
+
 def sample_initial(graph):
-    samples, local_v = sample_from_joint(graph)
+    (samples, _), local_v = sample_from_joint(graph)
     return local_v
 
 def computeU(X: dict, Y: dict, P: dict, sigma: dict):
@@ -216,7 +345,7 @@ def gibbs_sample(graph, S = 100000):
     return samples
 
 
-def sample_from_joint(graph):
+def sample_from_joint(graph, sigma = None):
     "This function does ancestral sampling starting from the prior."
     G = graph[1]
     E = graph[2]
@@ -227,41 +356,92 @@ def sample_from_joint(graph):
     # topological sort on the Graph
     topo = list(topological_sort(graph_struct))
     local_v = {}
-    sigma = {}
-    sigma['logW'] = 0
 
-    if len(A) == 0:
+    sigma = {LOGW: 0} if sigma is None else sigma
 
-        if len(P) == 0:
-            ret, _ = eval(E, local_v)
-            return ret, local_v
-        else:
-            # deterministic eval
-            ret_v = deterministic_eval(P[E])
-            return ret_v, local_v
-    else:
-        # eval each variable, variables that ahead of the current
-        # variable in the topological graph will be evaluated first
-        '''
-        for v in V:
-            if v not in local_v.keys():
-                r_ind = topo.index(v)
-                for i in range(0, r_ind + 1):
-                    if topo[i] not in env.keys():
-                        ret, sigma = eval(P[topo[i]], sigma,local_v)
-                        local_v[topo[i]] = ret
-        '''
-        # local_v= {}
-        for v in topo:
-            if v not in env.keys():
-                ret, sigma = eval(P[v], sigma, local_v)
-                if v in G['Y'].keys() and P[v][0] in ['observe*']:
-                    local_v[v] = torch.tensor(G['Y'][v])
-                else:
-                    local_v[v] = torch.tensor(ret)
+    # eval each variable, variables that ahead of the current
+    # variable in the topological graph will be evaluated first
+    '''
+    for v in V:
+        if v not in local_v.keys():
+            r_ind = topo.index(v)
+            for i in range(0, r_ind + 1):
+                if topo[i] not in env.keys():
+                    ret, sigma = eval(P[topo[i]], sigma,local_v)
+                    local_v[topo[i]] = ret
+    '''
+    # local_v= {}
+    for v in topo:
+        if v not in env.keys():
+            ast = P[v]
+            if ast[0] == 'sample*':
+                d, sigma = eval(ast[1], sigma, local_v)
+                if v not in sigma[QKEY]:
+                    # alpha = torch.tensor(10.)
+                    beta = torch.tensor(1.)
+                    # if v in ['sample3', 'sample1', 'sample5']:
+                    #     sigma[QKEY][v] = Gamma(alpha, beta).make_copy_with_grads()
+                    # else:
+                    #     sigma[QKEY][v] = d.make_copy_with_grads()
+                    # if v in ['sample2']:
+                    #     alpha = torch.abs(torch.tensor(local_v['sample1']))
+                    #     sigma[QKEY][v] = Gamma(alpha/4, beta, fixed='concentration').make_copy_with_grads()
+                    # else:
+                    #     sigma[QKEY][v] = d.make_copy_with_grads()
 
-        # all the variables evaluated
-        return eval(E, sigma, local_v)[0], local_v
+                    sigma[QKEY][v] = d.make_copy_with_grads()
+                p = sigma[QKEY][v]
+
+                c = p.sample()
+
+                nlp = p.log_prob(c)
+                nlp.backward()
+
+                # try:
+                #     grad_list = []
+                #     for lmbda in p.Parameters():
+                #         grad_vec = lmbda.grad
+                #         if grad_vec.shape:
+                #             grad_list += [gv for gv in grad_vec.squeeze()]
+                #             # if any([abs(gv) > 100 for gv in grad_vec.squeeze()]):
+                #             #     import pdb; pdb.set_trace()
+                #         else:
+                #             # if grad_vec > 100:
+                #             #     import pdb; pdb.set_trace()
+                #             grad_list.append(grad_vec)
+                #     sigma[GKEY][v] = torch.tensor(grad_list)
+                #     import pdb; pdb.set_trace()
+                # except:
+                #     import pdb; pdb.set_trace()
+                #     sigma[GKEY][v] = torch.tensor([lmbda.grad.unsqueeze() for lmbda in p.Parameters()])
+
+                grad_list = []
+                for lmbda in p.Parameters():
+                    grad_list.append(lmbda.grad.clone().detach())
+                    sigma[GKEY][v] = grad_list
+
+                for lmbda in p.Parameters():
+                    lmbda.grad.data.zero_()
+
+                try:
+                    logW = d.log_prob(c).detach() - sigma[QKEY][v].log_prob(c).detach()
+                except:
+                    import pdb; pdb.set_trace()
+
+                sigma[LOGW] += logW
+
+                local_v[v] = c
+
+            elif ast[0] == 'observe*':
+                d, sigma = eval(ast[1], sigma, local_v)
+                c, sigma = eval(ast[2], sigma, local_v)
+                sigma[LOGW] += d.log_prob(c).squeeze(-1).squeeze(-1)
+                # local_v[v] = torch.tensor(c)
+            else:
+                ret, sigma = eval(ast, sigma, local_v)
+
+    # all the variables evaluated
+    return eval(E, sigma, local_v), local_v
 
 
 def get_stream(graph):
@@ -274,7 +454,7 @@ def get_stream(graph):
     # print(sample_from_joint(graph))
     # print(sample_from_joint(graph))
     while True:
-        yield sample_from_joint(graph)
+        yield sample_from_joint(graph)[0]
 
 
 # Testing:
@@ -339,6 +519,4 @@ if __name__ == '__main__':
         graph = daphne(['graph', '-i', '../CS532-HW2/programs/{}.daphne'.format(i)])
         # print(graph)
         print('\n\n\nSample of prior of program {}:'.format(i))
-        print(sample_from_joint(graph))
-
-
+        print(sample_from_joint(graph)[0])

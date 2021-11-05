@@ -1,0 +1,176 @@
+#+TITLE: HW4
+#+AUTHOR: Justice Sefas
+#+OPTIONS: toc:nil num:nil tex:t html-postamble:nil
+
+#+LATEX_HEADER: \usepackage{amsfonts}
+#+LATEX_HEADER: \usepackage{physics}
+
+* Code
+#+begin_src python
+def eval():
+    ...
+    if ast[0] == 'sample*':
+        d, sigma = eval(ast[1], sigma, local_v)
+        if v not in sigma[QKEY]:
+            sigma[QKEY][v] = d.make_copy_with_grads()
+        p = sigma[QKEY][v]
+
+        c = p.sample()
+
+        nlp = p.log_prob(c)
+        nlp.backward()
+        grad_list = []
+        for lmbda in p.Parameters():
+            grad_list.append(lmbda.grad.clone().detach())
+            sigma[GKEY][v] = grad_list
+
+        for lmbda in p.Parameters():
+            lmbda.grad.data.zero_()
+
+        logW = d.log_prob(c).detach() - sigma[QKEY][v].log_prob(c).detach()
+        sigma[LOGW] += logW
+
+alpha = 0.0001
+step = 1
+def optimizer_step(q, ghat):
+    global alpha
+    global step
+    if step % 50 == 0:
+        alpha *= 0.1
+    step += 1
+    lambdas = {}
+    for v in ghat:
+        for i,p in enumerate(q[v].Parameters()):
+            if p.data.shape != (p.data + alpha*ghat[v][i]).shape:
+                import pdb; pdb.set_trace()
+            p.data = p.data + alpha*ghat[v][i]
+
+    return q
+
+def cov(X, Y):
+    return torch.matmul((X - X.mean(axis=0)).transpose(1,0), Y - Y.mean(axis=0))
+
+def elbo_gradients(gt, logWt):
+    ghat = {}
+    f = [{} for l in range(len(gt))]
+    for v in set(k for gmap in gt for k in gmap.keys()):
+        for l, gtl in enumerate(gt):
+            fl = f[l]
+            if v in gtl:
+                ggrad = torch.stack(gtl[v])
+                fl[v] = ggrad*logWt[l]
+            else:
+                gtl[v] = torch.tensor(0.0)
+                fl[v] = torch.tensor(0.0)
+
+        glstacks = []
+        for gtl in gt:
+            glstacks.append(torch.stack(gtl[v]).squeeze())
+        gstack = torch.stack(glstacks)
+
+        fstack = torch.stack([fl[v].detach().squeeze() for fl in f])
+        try:
+            covariance = torch.diag(cov(fstack, gstack))
+            variance = torch.diag(cov(gstack, gstack))
+        except:
+            import pdb; pdb.set_trace()
+        global use_baseline
+        if use_baseline:
+            if torch.sum(variance).detach() == 0:
+                bhat = torch.tensor(0.0)
+            else:
+                bhat = covariance / variance
+        else:
+            bhat = torch.tensor(0.0)
+        ghat[v] = (fstack - bhat*gstack).sum(axis=0) / len(gt)
+
+    return ghat
+
+def bbvi(graph, T=50, L=100):
+    global use_baseline
+    if use_baseline:
+        print('using baseline')
+    else:
+        print('not using baseline')
+    sigma = {LOGW: 0, QKEY: {}, GKEY: {}}
+    return_vals = []
+    for t in range(T):
+        gt = []
+        logWt = []
+        for l in range(L):
+            (rtl, sigmatl), _ = sample_from_joint(graph, sigma)
+            gtl, logWtl = sigmatl[GKEY], sigmatl[LOGW]
+            gt.append(gtl)
+            logWt.append(logWtl)
+            return_vals.append((rtl, logWtl))
+            sigma[LOGW] = 0
+            sigma[GKEY] = {}
+        ghat = elbo_gradients(gt, logWt)
+        new_q = optimizer_step(sigma[QKEY], ghat)
+        sigma[QKEY] = new_q
+        ELBO = sum(logWt) / L
+        global use_wandb;
+        if use_wandb:
+            wandb.log({"epoch": t, "elbo": ELBO})
+    return return_vals, sigma[QKEY]
+#+end_src
+
+* Program 1
+Learning rate 0.1
+baseline: b = covariance / variance
+T=1000
+L=100
+posterior_mean:  7.235746732245736
+{'sample2': Normal(loc: 7.250000476837158, scale: 0.9128708839416504)}
+[[./q_plot.png]]
+[[./prog1_elbo.png]]
+
+* Program 2
+Learning rate 0.001
+baseline: b = covariance / variance
+T=1000
+L=100
+posterior_mean:  [ 2.1145644  -0.35067093]
+[[./prog2_elbo.png]]
+
+* Program 3
+Learning rate:
+#+begin_src python
+alpha = 0.0001
+step = 1
+def optimizer_step(q, ghat):
+    global alpha
+    global step
+    if step % 50 == 0:
+        alpha *= 0.1
+    step += 1
+#+end_src
+
+baseline: b=0
+T=1000
+L=100
+posterior_mean 0.360
+posterior_mean 0.91
+
+Learning rate = 0.001
+T = 500
+L = 100
+posterior_mean:  0.3958671358743451
+posterior_mean:  0.4145296551984401
+[[./prog3_elbo.png]]
+
+Because VI minimizes a KL divergence term, $\argmin_q\int q(x)\log\dfrac{q(x)}{p(x)}dx$, it optimizes for a variational distribution $q(x)$ which is small where $p(x)$ is small -- in order for the integral not to blow up. The practical result of this optimization is that $q(x)$ seeks modes of $p(x)$ and therefore may have high variance if $p(x)$ is multimodal as in program 3. The symmetry in this program is due to the Gaussian mixture model's three modes, which causes the posterior $q(x)$ to bounce around eventually lying on one of the modes.
+
+* Program 4
+Learning rate: 0.05
+T=1000
+L=100
+[[./prog4_elbo.png]]
+[[./heatmap_0.png]]
+[[./heatmap_1.png]]
+[[./heatmap_2.png]]
+[[./heatmap_3.png]]
+
+  Both mean-field BBVI and Pathwise Gradients of the ELBO have losses which are expectations with respect to $q$, which itself depends on the variational parameter. In order to optimize with respect to this parameter, we must take the gradient of the expectation; however, this is difficult since we would have to backprop through the *average of all the samples* and we also get a term that is not obviously Monte Carlo approximable. BBVI uses the [[id:730692b7-b0d4-4cce-b172-a97e39741145][reinforce trick]] to move the derivative inside the integral by using the [[id:4258fb64-bbac-46fa-82c2-28702f1d4b65][score function]] whereas [[id:e9d833a5-5850-4d49-a7f0-0df5bdde194c][Pathwise Gradients of the ELBO]] uses the [[id:ea69f36e-59cc-4c3d-bbc6-8d2b2f926e5d][Reparameterization Trick]] to move the gradient inside the expectation. Furthermore, Pathwise Gradients requires a differentiable model and that the variational approximation have the form $z=t(\epsilon,\nu)$ whereas the score function estimator can work for discrete models in addition to continuous ones.
+
+* Program 5

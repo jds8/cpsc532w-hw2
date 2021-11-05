@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from distributions import Normal, Bernoulli, Categorical, Dirichlet, Gamma
 
 #TODO
 
@@ -81,7 +82,7 @@ def rest(*args):
 def norm(*args):
     mean = args[0].to(torch.float)
     sed = args[1].to(torch.float)
-    return torch.distributions.normal.Normal(mean, sed)
+    return Normal(mean, sed)
 
 
 def beta(*args):
@@ -92,11 +93,11 @@ def beta(*args):
 def gamma(*args):
     c1 = args[0].to(torch.float)
     c0 = args[1].to(torch.float)
-    return torch.distributions.gamma.Gamma(c1, c0)
+    return Gamma(c1, c0)
 
 def dirichlet(*args):
     c1 = args[0]
-    return torch.distributions.dirichlet.Dirichlet(c1)
+    return Dirichlet(c1)
 
 def expo(*args):
     rate = args[0].to(torch.float)
@@ -109,14 +110,14 @@ def unif(*args):
 
 def berno(*args):
     probs = args[0].to(torch.float)
-    return torch.distributions.bernoulli.Bernoulli(probs)
+    return Bernoulli(probs)
 
 def is_eq(arg1, arg2):
     return arg1 == arg2
 
 def categorical(*args):
     # probs = args[0].to(torch.float)
-    return torch.distributions.categorical.Categorical(args[0])
+    return Categorical(args[0])
 
 def sample (*args):
     d = args[0]
@@ -160,7 +161,10 @@ def matrix_remap(*args):
     m_0 = args[0]
     d_1 = args[1]
     d_2 = args[2]
-    return m_0.repeat(d_1, d_2)
+    try:
+        return m_0.repeat(d_1, d_2)
+    except:
+        import pdb; pdb.set_trace()
 
 primitive_dict = {
     '<': torch.lt,
@@ -189,6 +193,7 @@ primitive_dict = {
     'normal': norm,
     'exponential': expo,
     'uniform': unif,
+    'uniform-continuous': unif,
     'bernoulli': berno,
     'discrete': categorical,
     'sample*': sample,
@@ -197,6 +202,7 @@ primitive_dict = {
     'cons': cons,
     'or': or_fun,
     'and': and_fun,
+    'abs': abs,
     'flip': berno,
 
     # matrix
